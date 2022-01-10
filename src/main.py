@@ -13,7 +13,7 @@ class Snake:
         self.height = height
         self.win_x = win_x
         self.win_y = win_y
-        self.current_dir = [0, 0]
+        self.current_dir = [random.choice([-1,1]), random.choice([-1,1])]
 
 
         # SNAKE WINDOW INIT
@@ -33,30 +33,40 @@ class Snake:
     
     def move(self, direction):
         # NEW HEAD COORDS
-        self.tail[0][0] += direction[0] 
-        self.tail[0][1] += direction[1]
+        self.x += direction[0] 
+        self.y += direction[1]
 
         self.current_dir = direction
     
     def border_collision(self):
 
-        if(self.tail[0][0] <= 0 or self.tail[0][0] >= self.width-1):
+        if(self.x <= 0 or self.x >= self.width-1):
             return True
         
-        if(self.tail[0][1] <= 0 or self.tail[0][1] >= self.height-1):
+        if(self.y <= 0 or self.y >= self.height-1):
             return True
+        return False
+
+    def tail_collision(self):
+        if ([self.x, self.y] in self.tail[2:]):
+            return True
+
         return False
 
     def food_collision(self, food):
         food = [food[0] - WINDOW_OFFSET, food[1] - WINDOW_OFFSET]
-        if(self.tail[0]  == food):
+        if([self.x, self.y]  == food):
             return True
         else:
             return False
 
     def update(self):
+        self.tail.insert(0, [self.x, self.y])
 
-        self.window.addstr(self.tail[0][1] - self.current_dir[1], self.tail[0][0] - self.current_dir[0], " ")
+        if(len(self.tail) > 1):
+            to_del = self.tail.pop()
+
+        self.window.addstr(to_del[1], to_del[0], " ")        
         self.window.addstr(self.tail[0][1], self.tail[0][0], "o")
         self.window.refresh()
 
@@ -97,10 +107,10 @@ class Game:
         self.screen.nodelay(True)
 
         is_collision = False
-        key = 0
+        key = 0 
         event = 0
 
-        food = [5, 5] # random start
+        food = [random.randint(WINDOW_OFFSET, snake_w), random.randint(WINDOW_OFFSET, snake_h)] # random start
 
 
         while key != 27 and not is_collision:
@@ -121,18 +131,22 @@ class Game:
             if (event == curses.KEY_UP):
                 snake.move(directions["UP"])
 
-            is_collision = snake.border_collision()
             food_collision = snake.food_collision(food)
 
             if (food_collision):
                 self.screen.addstr(food[1], food[0], " ")
                 self.score += 1
-                # snake.tail.insert(0, [food[0] - WINDOW_OFFSET, food[1] - WINDOW_OFFSET])
+                snake.tail.insert(0, [food[0] - WINDOW_OFFSET, food[1] - WINDOW_OFFSET])
                 food = [random.randint(3, snake_w-1), random.randint(3, snake_h-1)]
                 
                 print("Food spawn!: " + str(food))
 
-            snake.update()
+            
+            is_collision = snake.border_collision()
+            is_collision = snake.tail_collision()
+
+            snake.update()            
+
             self.screen.addstr(1, self.width -20, "Score: " + str(self.score))
             self.screen.addstr(food[1], food[0], "x")
             self.screen.refresh()
