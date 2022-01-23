@@ -1,8 +1,6 @@
 import curses
 import random
 import time
-import socket
-from consts import STATE
 
 # ---- CLASSES 
 
@@ -113,11 +111,10 @@ class Snake:
 
 
 class Game:
-    def __init__(self, screen, width, height, socket):
+    def __init__(self, screen, width, height):
         self.screen = screen
         self.width = width
-        self.height = height
-        self.socket = socket        
+        self.height = height        
 
     def print_screen(self):
         print(self.screen)
@@ -152,36 +149,28 @@ class Game:
 
         snake.spawn_food()
 
-    # --- MAIN LOOP
-        try:
-            while key != 27 and not is_collision:
-                key = self.screen.getch()
+        while key != 27 and not is_collision:
+            key = self.screen.getch()
 
-                if (key != -1):
-                    event = key
+            if (key != -1):
+                event = key
 
-                if (event == curses.KEY_LEFT):
-                    snake.move(directions["LEFT"])
-                
-                if (event == curses.KEY_RIGHT):
-                    snake.move(directions["RIGHT"])
-                
-                if (event == curses.KEY_DOWN):
-                    snake.move(directions["DOWN"])
-                
-                if (event == curses.KEY_UP):
-                    snake.move(directions["UP"])
-                
-                is_collision = snake.border_collision() or snake.tail_collision()
+            if (event == curses.KEY_LEFT):
+                snake.move(directions["LEFT"])
+            
+            if (event == curses.KEY_RIGHT):
+                snake.move(directions["RIGHT"])
+            
+            if (event == curses.KEY_DOWN):
+                snake.move(directions["DOWN"])
+            
+            if (event == curses.KEY_UP):
+                snake.move(directions["UP"])
+            
+            is_collision = snake.border_collision() or snake.tail_collision()
 
-                snake.update()            
+            snake.update()            
 
-                self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
-                self.screen.refresh()
-                time.sleep(0.1)
-        
-            socket.send(STATE["PLAYER_DEAD"])
-
-        except KeyboardInterrupt:
-            socket.send(STATE["EXIT"])
-            exit(1)
+            self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
+            self.screen.refresh()
+            time.sleep(0.1)

@@ -1,0 +1,2 @@
+W_WIDTH = 30
+W_HEIGHT = 20
