@@ -4,8 +4,8 @@ import json
 import threading
 import time
 import curses
+import pickle
 from snake import Snake
-from infobox import InfoBox
 from consts import PORT, BUFF_SIZE
 
 
@@ -28,43 +28,58 @@ class Client:
         self.snake_y = 2
 
         # VALUES FOR INFOBOX WINDOW
-        self.info_w = int(((scr_x - 3)/2 - 2))
+        self.info_w = int(((scr_x - 3)/2 - 1)) 
         self.info_h = self.snake_h
-        self.info_x = self.snake_w + 2
+        self.info_x = self.snake_w + 9
         self.info_y = self.snake_y
+
+        self.connected = False
+        self.data_to_display = []
+        self.is_alive = True
+        self.id = -1
 
         try:
             self.s.connect((ip, p))
             self.s.send(nick.encode())
 
-            t =  threading.Thread(target=self.connection_test, args=())
-            t.start()
+            while not self.connected:
+                data =  self.s.recv(BUFF_SIZE)
+                data = data[:data.find("EoF")]
+                data = json.loads(data)
+                self.connected = data["connected"]
+                self.id = data["id"]
+
+            if(self.connected):               
+                t =  threading.Thread(target=self.connection_test, args=())
+                t.start()
+                #self.game()
+                # t.join()
+                #self.s.close()
             
 
         except socket.error:
             print("socket error!")
 
     def connection_test(self):     
-        #info = InfoBox(self.info_w, self.info_h, self.info_x, self.info_y)
-        info = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_x)
-        info.clear()
-        info.box()
-        info.border(1)
 
-        while True:
-            data = self.s.recv(BUFF_SIZE)
-            if(data):
-                data = json.loads(data.decode())
-                info.addstr(self.info_y + 2 , self.info_x + 3, "T E S T")
-                #info.get_data("TEST LOL")
+        while self.is_alive:
+            data = self.s.recv(BUFF_SIZE)            
+            print(type(data))
+            if (len(data) > 0):
+                data = data[:data.find("EoF")]
+                data = json.loads(data)
                 
-            #info.refresh()
-            #info.update()
+                for i in data:
+                    print(i)
+
+                data = ""
+
         self.s.close()
 
     def print_screen(self):
         print(self.screen)
     
+
     def game(self):
 
         self.print_screen()
@@ -84,6 +99,11 @@ class Client:
         self.screen.refresh()
 
         snake = Snake(self.snake_w, self.snake_h, self.snake_x, self.snake_y)
+        infobox = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_w)
+        infobox.clear()
+        infobox.box()
+        infobox.border(1)
+        infobox.refresh()
 
         self.screen.nodelay(True)
 
@@ -114,12 +134,24 @@ class Client:
             
             is_collision = snake.border_collision() or snake.tail_collision()
 
-            snake.update()            
+            snake.update()  
+
+            for id in self.data_to_display:
+                pass
+                # nick = self.data_to_display[id]["nick"]
+                # score = self.data_to_display[id]["score"]
+                # status = self.data_to_display[id]["status"]
+            # infobox.addstr(5 + i , 3, str(nick) + ": " + str(score) + "   is_alive: " + str(status))
+            infobox.addstr(5  , 3, str(self.data_to_display))
+            infobox.refresh()
 
             self.screen.addstr(1, self.screen_w - 20, "Score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
+        
 
+        self.is_alive = False
+        
 
 def main(screen):
     try:
@@ -139,26 +171,16 @@ def main(screen):
         test_client = Client(server_ip, PORT, player_nick,
                             screen, screen_x, screen_y)
 
-        test_client.game()
-
         
     except IndexError:
         print("No ip addr or nick  given!")
+        exit(1)
 
     except ValueError:
         print("Your terminal is too small! Current size x: {} y:{}".format(screen_y, screen_x))
+        exit(1)
 
 
 if __name__ == "__main__":
     curses.wrapper(main)
-
-
-
-
-
-
-
-
-
-
 

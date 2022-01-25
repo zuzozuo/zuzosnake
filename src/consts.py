@@ -1,14 +1,6 @@
 W_WIDTH = 30
 W_HEIGHT = 20
 PORT = 20001
-BUFF_SIZE = 1024
+BUFF_SIZE = 2048
 PLAYER_COUNT = 3
-TIME = 6
-# STATE = {
-#     "WAIT" : "1",
-#     "START_GAME" : "2",
-#     "PLAYER_ALIVE" : "3",
-#     "PLAYER_DEAD" : "4",
-#     "PLAYER_UPDATE" : "5",
-#     "EXIT" : "6"
-# }
+TIME = 10

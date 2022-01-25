@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import json
+import pickle
 from consts import PORT, BUFF_SIZE,  PLAYER_COUNT, TIME
 
 
@@ -26,7 +27,7 @@ class Server:
         self.s.listen(3)
 
     def init_vars(self, n):
-        for x in range (0, n):
+        for _ in range (0, n):
             states = {
                 "PLAYER_DEAD" : False,
                 "PLAYER_DISCONNECTED" : False,
@@ -37,18 +38,27 @@ class Server:
             self.states.append(states)         
 
     def client_thread(self, c, id):
+
         print("Connection from: " + str(self.players[id]["ip"]))
         nick = c.recv(BUFF_SIZE).decode()
         self.players[id]["nick"] = nick
-
+        
         data_to_send = {
             "players" : self.players,
-            "scores"  : self.scores
+            "states" : self.states,
+            "scores"  : self.scores,
+            "connected" : True,
+            "info" : "Initial data",
+            "id": id
         } 
-        
-        c.send(json.dumps(data_to_send).encode())
 
-            
+        data_to_send = (json.dumps(data_to_send) + "EoF").encode()
+        c.send(data_to_send)
+
+        while True:       
+            c.send(data_to_send)
+
+
     def wait_for_players(self):
         try:    
             start = time.time()
