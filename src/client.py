@@ -13,9 +13,16 @@ class Client:
     def __init__(self, ip, p, nick, scr, scr_x, scr_y):
         self.server_ip = ip
         self.nick = nick
-        # self.port = p
+        self.port = p
         self.s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
-        self.data =""
+
+        self.connected = False
+        self.data_to_display = {}
+        self.is_alive = True
+        self.id = -1
+        self.wait = False
+
+        self.score = 0
 
         self.screen = scr
         self.screen_w = scr_x 
@@ -28,17 +35,12 @@ class Client:
         self.snake_y = 2
 
         # VALUES FOR INFOBOX WINDOW
-        self.info_w = int(((scr_x - 3)/2 - 1)) 
+        self.info_w = int((scr_x/2) - 7) 
         self.info_h = self.snake_h
-        self.info_x = self.snake_w + 9
+        self.info_x = self.snake_w + 1
         self.info_y = self.snake_y
 
-        self.connected = False
-        self.data_to_display = {}
-        self.is_alive = True
-        self.id = -1
-
-        self.score = 0
+        
 
         try:
             self.s.connect((ip, p))
@@ -51,7 +53,7 @@ class Client:
                 self.id = data["id"]
 
             if(self.connected):               
-                t =  threading.Thread(target=self.connection_test, args=())
+                t =  threading.Thread(target=self.connection, args=())
                 t.start()
                 self.game()
 
@@ -63,29 +65,43 @@ class Client:
         except socket.error:
             print("socket error!")
 
-    def connection_test(self):     
+    def connection(self):     
 
         while True:
-            data = self.s.recv(BUFF_SIZE).decode("utf-8")        
-            if (len(data) > 0):
-                data = json.loads(data)
+            is_dead = not self.is_alive
+            server_data = self.s.recv(BUFF_SIZE).decode("utf-8")   
+            
+            if (len(server_data) > 0):
+                server_data = json.loads(server_data)
+                self.data_to_display = server_data["data"]               
+                server_data = ""
+            
+            self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": is_dead}))
+            time.sleep(1)
 
-                for player in data["players"]:
-                    p = {
-                            "nick" :  str(player["nick"]),
-                            "score": str(data["scores"][player["id"]]),
-                            "is_dead": str(data["states"][player["id"]]["PLAYER_DEAD"])
-                        }
-
-                    self.data_to_display[str(player["id"])] = p
+            if(self.is_alive == False): 
+                time.sleep(1)
+                self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": is_dead}))
+                time.sleep(1)
+                server_data = self.s.recv(BUFF_SIZE).decode("utf-8") 
+                if len(server_data) > 0:
+                    server_data = json.loads(server_data)
+                    for player in server_data["data"]:
+                        if player["id"] == self.id: self.wait = player["wait"]
                 
-                self.s.send("".encode())
+                break
 
-                data = ""
+        while self.wait:
+            server_data = self.s.recv(BUFF_SIZE).decode("utf-8")
+            if(len(server_data) > 0):
+                # do something
+                pass
+            else:
+                break
+        
+        self.s.close()
 
-            if(self.is_alive == False): break
-
-        self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": True}))       
+        # wait for others
 
     def print_screen(self):
         print(self.screen)
@@ -110,7 +126,7 @@ class Client:
         self.screen.refresh()
 
         snake = Snake(self.snake_w, self.snake_h, self.snake_x, self.snake_y)
-        infobox = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_w)
+        infobox = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_x)
         infobox.clear()
         infobox.box()
         infobox.border(1)
@@ -152,11 +168,9 @@ class Client:
             self.score = snake.get_score()
 
             posy = 0
-
-            for id in self.data_to_display:
-                infobox.addstr(5 + posy  , 5, "                                                                 ")
-                info_text = "nick: " + self.data_to_display[id]["nick"] + " score: "  
-                info_text += self.data_to_display[id]["score"] + " is_dead: " + self.data_to_display[id]["is_dead"]
+            curr_info = self.data_to_display
+            for player in curr_info:
+                info_text = "nick: " + player["nick"] + " score: " + str(player["score"]) + " is_dead: " + str(player["is_dead"])
                 infobox.addstr(5 + posy  , 5, info_text)
                 posy +=1
 
@@ -167,7 +181,12 @@ class Client:
         
 
         self.is_alive = False
-        curses.endwin()
+        self.screen.clear()
+        self.screen.refresh()
+        self.screen.box()
+        while (self.wait):
+            self.screen.addstr((int(self.screen_h/2)-5), int(self.screen_w/2)-5, "YOU ARE DEAD BUDDY! ")
+            self.screen.refresh()
         
 
 def main(screen):

@@ -16,10 +16,7 @@ class Server:
     def __init__(self):
         self.connections = []
         self.players = []
-        self.states = []
-        self.scores = []
-        self.whole_data = []
-
+        self.death_counter = 0
         self.s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
 
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -43,46 +40,45 @@ class Server:
         print("Connection from: " + str(self.players[id]["ip"]))
         nick = c.recv(BUFF_SIZE).decode()
         self.players[id]["nick"] = nick
-        
-        data_to_send = {
-            "players" : self.players,
-            "states" : self.states,
-            "scores"  : self.scores,
-            "connected" : True,
-            "info" : "Initial data",
-            "id": id
-        } 
 
-        data_to_send = (json.dumps(data_to_send)).encode("utf-8")
+        data_to_send = (json.dumps({"id": id, "connected": True, "wait": False})).encode("utf-8")
         c.send(data_to_send)
 
-        while True:       
-
-            to_send = json.dumps({
-            "players" : self.players,
-            "states" : self.states,
-            "scores"  : self.scores,
-            "connected" : True,
-            "info" : "Initial data",
-            "id": id
-            } )
-
+        while self.death_counter < (len(self.players)):       
+            to_send = json.dumps({"data": self.players})
             c.send(to_send)
 
-            
-            time.sleep(1.0)
+            time.sleep(1)
 
             client_data = c.recv(BUFF_SIZE).decode()
-            print(client_data +"\n")
-            
+
             if(len(client_data) > 0):
                 client_data = json.loads(client_data)
                 # UPDATE OF DATA TO SEND
+
                 for player in self.players:
-                    if player[client_data["id"]] == id:
-                        self.scores[client_data["id"]] = client_data["score"]
-                        self.states[client_data["id"]]["PLAYER_DEAD"] = client_data["is_dead"]
-            
+                    if player["id"] == client_data["id"]:
+                        player["score"] = client_data["score"]
+                        player["is_dead"] = client_data["is_dead"]
+                    
+                    if client_data["id"] == id and client_data["is_dead"] == True:
+                        player["wait"] = True
+
+                    
+                    if (player["is_dead"]):
+                        self.death_counter +=1
+        
+
+
+        rank = self.sort_scores()
+        time.sleep(0.5)
+        print(rank)
+        # TO DO SEND INFO ABOUT DISCONNECTION
+        
+
+
+    def sort_scores(self):
+        return sorted(self.players, key=lambda d: d['score']) 
 
     def wait_for_players(self):
         try:    
@@ -98,13 +94,18 @@ class Server:
                 except socket.error:
                     continue
                 
-            self.init_vars(len(self.connections))
+            #self.init_vars(len(self.connections))
 
             for i in range(0, len(self.connections)):
                 player_info = {
                     "id" : i,
                     "ip" : self.connections[i][1][0],
-                    "port": self.connections[i][1][1]
+                    "port": self.connections[i][1][1],
+                    "nick": "",
+                    "is_dead": False,
+                    "score" : 0,
+                    "connected" : True,
+                    "wait" : False
                 }
                 self.players.append(player_info)
 
