@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import json
+import errno
 import pickle
 from consts import PORT, BUFF_SIZE,  PLAYER_COUNT, TIME
 
@@ -40,19 +41,22 @@ class Server:
         print("Connection from: " + str(self.players[id]["ip"]))
         nick = c.recv(BUFF_SIZE).decode()
         self.players[id]["nick"] = nick
+        client_data =""
 
         data_to_send = (json.dumps({"id": id, "connected": True, "wait": False})).encode("utf-8")
         c.send(data_to_send)
 
-        while self.death_counter < (len(self.players)):       
-            to_send = json.dumps({"data": self.players})
-            c.send(to_send)
+        while True:    
+            try:   
+                #client_data = c.recv(BUFF_SIZE).decode()
 
-            time.sleep(1)
+                while not client_data:
+                    deadline = time.time() + 5.0
+                    if time.time() >= deadline:
+                        raise socket.timeout
+                    c.settimeout(deadline - time.time())
+                    client_data = c.recv(BUFF_SIZE).decode()
 
-            client_data = c.recv(BUFF_SIZE).decode()
-
-            if(len(client_data) > 0):
                 client_data = json.loads(client_data)
                 # UPDATE OF DATA TO SEND
 
@@ -63,19 +67,29 @@ class Server:
                     
                     if client_data["id"] == id and client_data["is_dead"] == True:
                         player["wait"] = True
-
                     
                     if (player["is_dead"]):
                         self.death_counter +=1
-        
+                
+                if(self.death_counter == len(self.players)):
+                    rank = self.sort_scores()
+                else:
+                    rank = []
+                
+                to_send = json.dumps({"data": self.players, "result": rank})
+                c.send(to_send)
+                
+                if(len(rank) > 0):
+                    break
 
-
-        rank = self.sort_scores()
-        time.sleep(0.5)
-        print(rank)
-        # TO DO SEND INFO ABOUT DISCONNECTION
-        
-
+            except socket.error as e:
+                if e.errno == errno.EPIPE:
+                    print ("Unexpected conn close from"  + str(self.players[id]["ip"]))
+                    break
+                else:
+                    print("Diffrent error")
+                    break
+        c.close()
 
     def sort_scores(self):
         return sorted(self.players, key=lambda d: d['score']) 

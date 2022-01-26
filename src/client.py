@@ -5,6 +5,7 @@ import threading
 import time
 import curses
 import pickle
+import errno
 from snake import Snake
 from consts import PORT, BUFF_SIZE
 
@@ -23,6 +24,8 @@ class Client:
         self.wait = False
 
         self.score = 0
+
+        self.result = []
 
         self.screen = scr
         self.screen_w = scr_x 
@@ -66,38 +69,36 @@ class Client:
             print("socket error!")
 
     def connection(self):     
-
+        results = []
         while True:
-            is_dead = not self.is_alive
-            server_data = self.s.recv(BUFF_SIZE).decode("utf-8")   
-            
-            if (len(server_data) > 0):
+            try:
+                is_dead = not self.is_alive
+
+                while not server_data:
+                    deadline = time.time() + 5.0
+                    if time.time() >= deadline:
+                        raise socket.timeout
+                    self.s.settimeout(deadline - time.time())
+                    server_data = self.s.recv(BUFF_SIZE).decode()
+
                 server_data = json.loads(server_data)
                 self.data_to_display = server_data["data"]               
                 server_data = ""
-            
-            self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": is_dead}))
-            time.sleep(1)
-
-            if(self.is_alive == False): 
-                time.sleep(1)
+                results = server_data["result"]
+                
                 self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": is_dead}))
                 time.sleep(1)
-                server_data = self.s.recv(BUFF_SIZE).decode("utf-8") 
-                if len(server_data) > 0:
-                    server_data = json.loads(server_data)
-                    for player in server_data["data"]:
-                        if player["id"] == self.id: self.wait = player["wait"]
-                
-                break
 
-        while self.wait:
-            server_data = self.s.recv(BUFF_SIZE).decode("utf-8")
-            if(len(server_data) > 0):
-                # do something
-                pass
-            else:
-                break
+                if(len(results) > 0):
+                    self.result = results
+                    break
+
+            except socket.error as e:
+                if e.errno == errno.EPIPE:
+                    print ("Unexpected conn close")
+                    break
+                else:
+                    print("Diffrent error")
         
         self.s.close()
 
@@ -181,12 +182,13 @@ class Client:
         
 
         self.is_alive = False
-        self.screen.clear()
-        self.screen.refresh()
-        self.screen.box()
+        self.wait = True
+
         while (self.wait):
+            self.screen.clear()
             self.screen.addstr((int(self.screen_h/2)-5), int(self.screen_w/2)-5, "YOU ARE DEAD BUDDY! ")
             self.screen.refresh()
+            time.sleep(0.1)
         
 
 def main(screen):
