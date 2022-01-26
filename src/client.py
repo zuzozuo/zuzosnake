@@ -14,7 +14,7 @@ class Client:
         self.server_ip = ip
         self.nick = nick
         # self.port = p
-        self.s = socket.socket()       
+        self.s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
         self.data =""
 
         self.screen = scr
@@ -34,9 +34,11 @@ class Client:
         self.info_y = self.snake_y
 
         self.connected = False
-        self.data_to_display = []
+        self.data_to_display = {}
         self.is_alive = True
         self.id = -1
+
+        self.score = 0
 
         try:
             self.s.connect((ip, p))
@@ -44,7 +46,6 @@ class Client:
 
             while not self.connected:
                 data =  self.s.recv(BUFF_SIZE)
-                data = data[:data.find("EoF")]
                 data = json.loads(data)
                 self.connected = data["connected"]
                 self.id = data["id"]
@@ -52,9 +53,11 @@ class Client:
             if(self.connected):               
                 t =  threading.Thread(target=self.connection_test, args=())
                 t.start()
-                #self.game()
-                # t.join()
-                #self.s.close()
+                self.game()
+
+                if(self.is_alive == False):
+                    t.join()
+                    self.s.close()
             
 
         except socket.error:
@@ -62,19 +65,27 @@ class Client:
 
     def connection_test(self):     
 
-        while self.is_alive:
-            data = self.s.recv(BUFF_SIZE)            
-            print(type(data))
+        while True:
+            data = self.s.recv(BUFF_SIZE).decode("utf-8")        
             if (len(data) > 0):
-                data = data[:data.find("EoF")]
                 data = json.loads(data)
+
+                for player in data["players"]:
+                    p = {
+                            "nick" :  str(player["nick"]),
+                            "score": str(data["scores"][player["id"]]),
+                            "is_dead": str(data["states"][player["id"]]["PLAYER_DEAD"])
+                        }
+
+                    self.data_to_display[str(player["id"])] = p
                 
-                for i in data:
-                    print(i)
+                self.s.send("".encode())
 
                 data = ""
 
-        self.s.close()
+            if(self.is_alive == False): break
+
+        self.s.send(json.dumps({"id": self.id, "score": self.score, "is_dead": True}))       
 
     def print_screen(self):
         print(self.screen)
@@ -111,6 +122,9 @@ class Client:
         key = 0 
         event = 0
 
+        info_text = ""
+        posy = 0
+
         snake.spawn_food()
 
     # --- MAIN LOOP
@@ -135,22 +149,25 @@ class Client:
             is_collision = snake.border_collision() or snake.tail_collision()
 
             snake.update()  
+            self.score = snake.get_score()
+
+            posy = 0
 
             for id in self.data_to_display:
-                pass
-                # nick = self.data_to_display[id]["nick"]
-                # score = self.data_to_display[id]["score"]
-                # status = self.data_to_display[id]["status"]
-            # infobox.addstr(5 + i , 3, str(nick) + ": " + str(score) + "   is_alive: " + str(status))
-            infobox.addstr(5  , 3, str(self.data_to_display))
-            infobox.refresh()
+                infobox.addstr(5 + posy  , 5, "                                                                 ")
+                info_text = "nick: " + self.data_to_display[id]["nick"] + " score: "  
+                info_text += self.data_to_display[id]["score"] + " is_dead: " + self.data_to_display[id]["is_dead"]
+                infobox.addstr(5 + posy  , 5, info_text)
+                posy +=1
 
+            infobox.refresh()
             self.screen.addstr(1, self.screen_w - 20, "Score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
         
 
         self.is_alive = False
+        curses.endwin()
         
 
 def main(screen):

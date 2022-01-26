@@ -18,6 +18,7 @@ class Server:
         self.players = []
         self.states = []
         self.scores = []
+        self.whole_data = []
 
         self.s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
 
@@ -52,12 +53,36 @@ class Server:
             "id": id
         } 
 
-        data_to_send = (json.dumps(data_to_send) + "EoF").encode()
+        data_to_send = (json.dumps(data_to_send)).encode("utf-8")
         c.send(data_to_send)
 
         while True:       
-            c.send(data_to_send)
 
+            to_send = json.dumps({
+            "players" : self.players,
+            "states" : self.states,
+            "scores"  : self.scores,
+            "connected" : True,
+            "info" : "Initial data",
+            "id": id
+            } )
+
+            c.send(to_send)
+
+            
+            time.sleep(1.0)
+
+            client_data = c.recv(BUFF_SIZE).decode()
+            print(client_data +"\n")
+            
+            if(len(client_data) > 0):
+                client_data = json.loads(client_data)
+                # UPDATE OF DATA TO SEND
+                for player in self.players:
+                    if player[client_data["id"]] == id:
+                        self.scores[client_data["id"]] = client_data["score"]
+                        self.states[client_data["id"]]["PLAYER_DEAD"] = client_data["is_dead"]
+            
 
     def wait_for_players(self):
         try:    
@@ -65,7 +90,7 @@ class Server:
             end = start 
 
             while (len(socket_list) < PLAYER_COUNT) and ((end - start) < TIME):
-                #print((end-start))
+
                 end = time.time()
                 try:                    
                     self.connections.append(self.s.accept())
