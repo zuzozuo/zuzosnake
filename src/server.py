@@ -1,139 +1,149 @@
+import logging
+from consts import W_WIDTH, W_HEIGHT, PORT, BUFF_SIZE , PLAYER_COUNT, TIME , REQ_EOL
 import socket
+import json
+import os
+import sys
+import select
+import json
 import threading
 import time
-import json
 import errno
-import pickle
-from consts import PORT, BUFF_SIZE,  PLAYER_COUNT, TIME
-
-
-socket_list = []
-thread_list = []
-start = 0
-end = 0
-
 
 class Server:
+
     def __init__(self):
-        self.connections = []
-        self.players = []
-        self.death_counter = 0
-        self.s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        self.socket = None
+        self.epoll = None 
+        self.fileno = None
+        self.clients = {
+            'fileno': [None] * PLAYER_COUNT,
+            'connection': [None] * PLAYER_COUNT,
+            'address': [None] * PLAYER_COUNT,
+            'snapshot': [None] * PLAYER_COUNT,
+            'request': [None] * PLAYER_COUNT,
+            'response': [None] * PLAYER_COUNT
+        }
+# -----------------------------------------------------
+    def connect(self):
+        conn, addr = self.socket.accept()
+        conn.setblocking(False)
 
-        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.s.bind(('', PORT))
-        self.s.setblocking(0)
-        self.s.listen(3)
+        slot = self.find_slot(None)
 
-    def init_vars(self, n):
-        for _ in range (0, n):
-            states = {
-                "PLAYER_DEAD" : False,
-                "PLAYER_DISCONNECTED" : False,
-                "START_GAME" : True
-            }
-
-            self.scores.append(0)
-            self.states.append(states)         
-
-    def client_thread(self, c, id):
-
-        print("Connection from: " + str(self.players[id]["ip"]))
-        nick = c.recv(BUFF_SIZE).decode()
-        self.players[id]["nick"] = nick
-        client_data =""
-
-        data_to_send = (json.dumps({"id": id, "connected": True, "wait": False})).encode("utf-8")
-        c.send(data_to_send)
-
-        while True:    
-            try:   
-                #client_data = c.recv(BUFF_SIZE).decode()
-
-                while not client_data:
-                    deadline = time.time() + 5.0
-                    if time.time() >= deadline:
-                        raise socket.timeout
-                    c.settimeout(deadline - time.time())
-                    client_data = c.recv(BUFF_SIZE).decode()
-
-                client_data = json.loads(client_data)
-                # UPDATE OF DATA TO SEND
-
-                for player in self.players:
-                    if player["id"] == client_data["id"]:
-                        player["score"] = client_data["score"]
-                        player["is_dead"] = client_data["is_dead"]
-                    
-                    if client_data["id"] == id and client_data["is_dead"] == True:
-                        player["wait"] = True
-                    
-                    if (player["is_dead"]):
-                        self.death_counter +=1
-                
-                if(self.death_counter == len(self.players)):
-                    rank = self.sort_scores()
-                else:
-                    rank = []
-                
-                to_send = json.dumps({"data": self.players, "result": rank})
-                c.send(to_send)
-                
-                if(len(rank) > 0):
-                    break
-
-            except socket.error as e:
-                if e.errno == errno.EPIPE:
-                    print ("Unexpected conn close from"  + str(self.players[id]["ip"]))
-                    break
-                else:
-                    print("Diffrent error")
-                    break
-        c.close()
-
-    def sort_scores(self):
-        return sorted(self.players, key=lambda d: d['score']) 
-
-    def wait_for_players(self):
-        try:    
-            start = time.time()
-            end = start 
-
-            while (len(socket_list) < PLAYER_COUNT) and ((end - start) < TIME):
-
-                end = time.time()
-                try:                    
-                    self.connections.append(self.s.accept())
-
-                except socket.error:
-                    continue
-                
-            #self.init_vars(len(self.connections))
-
-            for i in range(0, len(self.connections)):
-                player_info = {
-                    "id" : i,
-                    "ip" : self.connections[i][1][0],
-                    "port": self.connections[i][1][1],
-                    "nick": "",
-                    "is_dead": False,
-                    "score" : 0,
-                    "connected" : True,
-                    "wait" : False
-                }
-                self.players.append(player_info)
-
-                t = threading.Thread(target=self.client_thread, args=(self.connections[i][0], i))
-                t.start()
+        if not slot in range(PLAYER_COUNT):
+            logging.warning("NO EMPTY SLOT LEFT")
+            conn.close()
+            return False
         
-        except socket.error:
-            print("Error occured")
-            print(str(socket.error))
-            self.s.close() 
+        clientno = conn.fileno()
 
+        if self.find_slot(clientno) in range(PLAYER_COUNT):
+            logging.error("DUPLICATE FOUND: CANNOT CONNECT 2 TIMES")
+            conn.close()
+            return False
+        
+        self.epoll.register(clientno, select.EPOLLIN)
 
+        self.clients['fileno'][slot] = clientno
+        self.clients['connection'][slot] = conn
+        self.clients['address'][slot] = addr
+        self.clients['snapshot'][slot] = []
+        self.clients['request'][slot] = b''
+        self.clients['response'][slot] = b''
 
-if __name__ == "__main__":
-    test_server = Server()
-    test_server.wait_for_players()
+        return True
 
+# --------------------------------------------------------------------
+    def find_slot(self, fileno):
+        try:
+            return self.clients['fileno'].index(fileno)
+        except ValueError:
+            return None
+    
+
+# ---------------------------------------------------------------------
+    def send(self,slot):
+        buff = self.clients['response'][slot] #content
+        written = self.clients['connection'][slot].send(buff) #size
+        print(buff, written)  # FIXME 
+        self.clients['response'][slot] = buff[written:]
+        self.epoll.modify(self.clients['fileno'][slot], select.EPOLLIN)
+
+# ---------------------------------------------------------------------
+    def receive(self, slot):
+
+        buff = self.clients['connection'][slot].recv(BUFF_SIZE)
+
+        if len(buff) == 0:
+            self.conn_close(slot)
+            return
+
+        self.clients['request'][slot] += buff
+
+        if REQ_EOL in self.clients['request'][slot]:
+            print("Response from all clients: ")
+            print(self.clients['request'])  # FIXME
+            self.epoll.modify(self.clients['fileno'][slot], select.EPOLLOUT)
+
+            self.clients['response'][slot] = self.clients['request'][slot]
+            self.clients['request'][slot] = b''
+
+# ----------------------------------------------------------------------
+    def conn_close(self, slot):
+        self.epoll.unregister(self.clients['fileno'][slot])
+        self.clients['connection'][slot].close()
+
+        self.clients['fileno'][slot] = None
+        self.clients['connection'][slot] = None
+        self.clients['address'][slot] = None
+
+# ----------------------------------------------------------------------
+    def run(self):
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.socket.bind(("", PORT))
+        self.socket.listen(1)
+        self.socket.setblocking(False)
+
+        self.fileno = self.socket.fileno()
+
+        self.epoll = select.epoll()
+        self.epoll.register(self.fileno, select.EPOLLIN | select.EPOLLET)
+
+        try:
+
+            while True: 
+                events = self.epoll.poll(1.0) #timeout
+                #print(int(time.time()), events, self.clients['fileno'])
+                print(self.clients['fileno'])
+
+                for fileno, event in events:
+                    if fileno == self.fileno:
+                        self.connect()
+                    else:
+                        slot = self.find_slot(fileno)
+                        if not slot in range(PLAYER_COUNT):
+                            logging.error("Slot not found")
+                        elif event & select.EPOLLIN:
+                            self.receive(slot)
+                        elif event & select.EPOLLOUT:
+                            self.send(slot)
+                        elif event & select.EPOLLHUP:
+                            self.conn_close(slot)
+                        else:
+                            logging.warning("Unknown error")
+        
+        finally:
+            self.epoll.unregister(self.fileno)
+            self.epoll.close()
+            self.socket.close()
+
+if __name__ == '__main__':
+    try:
+        server = Server()
+        server.run()
+    except KeyboardInterrupt:
+        print('\nRIP\n')
