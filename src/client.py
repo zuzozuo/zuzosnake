@@ -9,6 +9,15 @@ import threading
 import sys
 import errno
 
+# --- GLOBAL VARIABLES  :(
+player_data = {
+                "alive": False,
+                "score": 0,
+                "nick" : ""
+            }
+
+all_player_data = ""
+
 # --- CLASSES 
 
 class Game:
@@ -17,11 +26,27 @@ class Game:
         self.width = width
         self.height = height       
 
+        # VALUES FOR SNAKE WINDOW 
+        self.snake_w = int(width - 3)/2
+        self.snake_h = height - 5
+        self.snake_x = 2
+        self.snake_y = 2
+
+        # VALUES FOR INFOBOX WINDOW
+        self.info_w = int((width/2) - 7) 
+        self.info_h = self.snake_h
+        self.info_x = self.snake_w + 1
+        self.info_y = self.snake_y
+
     def print_screen(self):
         print(self.screen)
 
 
     def rungame(self):
+        global player_data, all_player_data
+
+        player_data["alive"] = True
+        player_data["score"] = 0
 
         self.print_screen()
 
@@ -39,10 +64,12 @@ class Game:
         self.screen.addstr(1, int(self.width/2)-5, "CURSED SNAKEE")
         self.screen.refresh()
 
-        snake_w = self.width - 5
-        snake_h = self.height - 5
-
-        snake = Snake(snake_w, snake_h, 2, 2)
+        snake = Snake(self.snake_w, self.snake_h, self.snake_x, self.snake_y)
+        infobox = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_x)
+        infobox.clear()
+        infobox.box()
+        infobox.border(1)
+        infobox.refresh()
 
         self.screen.nodelay(True)
 
@@ -72,12 +99,28 @@ class Game:
             
             is_collision = snake.border_collision() or snake.tail_collision()
 
-            snake.update()            
 
+            snake.update()  
+            player_data["score"] = snake.get_score()
+
+            posy = 0
+
+            to_print = all_player_data
+
+            # for line in to_print:
+            #     info_text = str(line)
+            #     infobox.addstr(3 + posy ,3 ,info_text)
+            #     posy +=1
+
+            infobox.refresh()          
+            self.screen.addstr(10, 10, to_print)
             self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
+
         
+        player_data["alive"] = False
+
         curses.endwin()
 
 
@@ -88,31 +131,34 @@ class Client:
         self.socket = None
         self.data = None
         self.received = None
-        self.to_send = None
 
     def conn(self):
+        global player_data, all_player_data
+
         self.socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.socket.setblocking(False)
 
+        player_data["alive"] = True
+        player_data["score"] = 0
+        player_data["nick"] = self.nick
+
         try:
             self.socket.settimeout(10)
             self.socket.connect((self.server_ip, PORT))
-            self.to_send = {
-                    "alive": True,
-                    "score": 0,
-                    "nick" : self.nick
-                }
 
             while True:
 
-                self.socket.send(json.dumps(self.to_send)+ REQ_EOL)
+                self.socket.send(json.dumps(player_data)+ REQ_EOL)
+
                 buff = self.socket.recv(BUFF_SIZE)
 
                 if len(buff) <= 0:
                     logging.warning("Empty buff")
                     return
                 
+                all_player_data = buff
+
                 #print(buff)
 
         except socket.error as e:
@@ -128,6 +174,7 @@ class Client:
 
 def main(screen):
     try:
+        
         if(len(sys.argv) < 3):
             raise IndexError
 
@@ -139,6 +186,7 @@ def main(screen):
         screen_y = int(curses.LINES) # main screen height
 
         print(screen_x, screen_y)
+
 
         client = Client(server_ip, nick)
         game = Game(screen, screen_x, screen_y)
@@ -157,12 +205,10 @@ def main(screen):
     except KeyboardInterrupt:
         print("RIP\n")
     
-    finally:
-        t.join()
-
+    #finally:
+        #t.join()
+        #client.socket.close()
 
 #------------------------------------------------------------------
-        
-
 if __name__ == '__main__':
     curses.wrapper(main)

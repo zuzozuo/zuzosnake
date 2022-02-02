@@ -24,6 +24,7 @@ class Server:
             'request': [None] * PLAYER_COUNT,
             'response': [None] * PLAYER_COUNT
         }
+        self.to_send = []
 # -----------------------------------------------------
     def connect(self):
         conn, addr = self.socket.accept()
@@ -60,11 +61,28 @@ class Server:
             return self.clients['fileno'].index(fileno)
         except ValueError:
             return None
-    
+
+# ---------------------------------------------------------------------
+    def data_filter(self):
+
+        for line in self.clients["response"]:
+            if line is not None and line !=b'':
+                tmp = json.loads(line.decode()[:-1])
+
+                if not any(k["nick"] == tmp["nick"] for k in self.to_send):
+                    self.to_send.append(tmp)
+                else:
+                    for k in range(0, len(self.to_send)):
+                        if self.to_send[k]["nick"] == tmp["nick"]:
+                            self.to_send[k]["score"] = tmp["score"]
+                            self.to_send[k]["alive"] = tmp["alive"]
 
 # ---------------------------------------------------------------------
     def send(self,slot):
-        buff = self.clients['response'][slot] #content
+        self.data_filter()
+
+        buff = json.dumps(self.to_send).encode()
+        #buff = self.clients['response'][slot] #content
         written = self.clients['connection'][slot].send(buff) #size
         print(buff, written)  # FIXME 
         self.clients['response'][slot] = buff[written:]
@@ -82,8 +100,8 @@ class Server:
         self.clients['request'][slot] += buff
 
         if REQ_EOL in self.clients['request'][slot]:
-            print("Response from all clients: ")
-            print(self.clients['request'])  # FIXME
+            #print("Response from all clients: ")
+            #print(self.clients['request'])  # FIXME
             self.epoll.modify(self.clients['fileno'][slot], select.EPOLLOUT)
 
             self.clients['response'][slot] = self.clients['request'][slot]
