@@ -17,7 +17,7 @@ player_data = {
             }
 
 all_player_data = ""
-
+is_connected = False
 # --- CLASSES 
 
 class Game:
@@ -99,21 +99,20 @@ class Game:
             
             is_collision = snake.border_collision() or snake.tail_collision()
 
-
             snake.update()  
+
             player_data["score"] = snake.get_score()
 
             posy = 0
-
             to_print = all_player_data
 
-            # for line in to_print:
-            #     info_text = str(line)
-            #     infobox.addstr(3 + posy ,3 ,info_text)
-            #     posy +=1
+            for line in to_print:
+                info_text = "nick: " + line["nick"] + " score: " + str(line["score"]) + " alive: " + str(line["alive"])
+                infobox.addstr(3 + posy ,3 ,info_text)
+                posy +=1
 
             infobox.refresh()          
-            self.screen.addstr(10, 10, to_print)
+            #self.screen.addstr(10, 10, to_print)
             self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
@@ -121,7 +120,40 @@ class Game:
         
         player_data["alive"] = False
 
+        # --- AFTER DEATH - there is no life : ( 
+
+        infobox.endwin()
+        self.screen.clear()
+
+        self.screen.box()
+        self.screen.addstr(0, self.width/-5, str(self.width) + "x" + str(self.height)) # prints main window size
+        self.screen.addstr(1, self.width -5, "CURSED SNAKEE")
+        self.screen.refresh()
+
+        #  NOTE - TO CHECK AND FINISH!
+        exit_game = False
+
+        while True:
+            to_print = json.loads(all_player_data.decode())
+
+            for line in to_print:
+                info_text = "nick: " + line["nick"] + " score: " + str(line["score"]) + " alive: " + str(line["alive"])
+                self.screen.addstr(6 + posy ,6 ,info_text)
+                posy +=1
+
+                exit_game &= not line["alive"]
+            
+            if (exit_game):
+                break
+
+            self.screen.refresh()
+            time.sleep(0.1)
+        
+
         curses.endwin()
+
+        return
+
 
 
 class Client:
@@ -133,7 +165,7 @@ class Client:
         self.received = None
 
     def conn(self):
-        global player_data, all_player_data
+        global player_data, all_player_data, is_connected
 
         self.socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -146,6 +178,7 @@ class Client:
         try:
             self.socket.settimeout(10)
             self.socket.connect((self.server_ip, PORT))
+            is_connected  = True
 
             while True:
 
@@ -157,11 +190,14 @@ class Client:
                     logging.warning("Empty buff")
                     return
                 
-                all_player_data = buff
+                all_player_data = json.loads(buff.decode())
 
                 #print(buff)
 
         except socket.error as e:
+
+            is_connected = False
+
             if(e[0] == errno.EPIPE):
                 logging.error("Server unexpectedly closed connection!")
             elif (e[0] == errno.EINPROGRESS):
@@ -170,6 +206,8 @@ class Client:
         
         finally:
             self.socket.close()
+
+
 #-----------------------------------------------------------------
 
 def main(screen):

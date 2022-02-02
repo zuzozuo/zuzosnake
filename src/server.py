@@ -82,9 +82,9 @@ class Server:
         self.data_filter()
 
         buff = json.dumps(self.to_send).encode()
-        #buff = self.clients['response'][slot] #content
+        # buff = self.clients['response'][slot] #content
         written = self.clients['connection'][slot].send(buff) #size
-        print(buff, written)  # FIXME 
+        # print(buff, written)  # FIXME 
         self.clients['response'][slot] = buff[written:]
         self.epoll.modify(self.clients['fileno'][slot], select.EPOLLIN)
 
