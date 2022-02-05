@@ -25,6 +25,7 @@ class Server:
             'response': [None] * PLAYER_COUNT
         }
         self.to_send = []
+        self.active = 0
 # -----------------------------------------------------
     def connect(self):
         conn, addr = self.socket.accept()
@@ -53,6 +54,8 @@ class Server:
         self.clients['request'][slot] = b''
         self.clients['response'][slot] = b''
 
+        self.active = sum((x is not None for x in self.clients['fileno']))
+
         return True
 
 # --------------------------------------------------------------------
@@ -68,19 +71,22 @@ class Server:
         for line in self.clients["response"]:
             if line is not None and line !=b'':
                 tmp = json.loads(line.decode()[:-1])
+                tmp["players_num"] = self.active
 
                 if not any(k["nick"] == tmp["nick"] for k in self.to_send):
                     self.to_send.append(tmp)
                 else:
                     for k in range(0, len(self.to_send)):
+                        self.to_send[k]["players_num"] =  self.active
                         if self.to_send[k]["nick"] == tmp["nick"]:
                             self.to_send[k]["score"] = tmp["score"]
                             self.to_send[k]["alive"] = tmp["alive"]
+                            
 
 # ---------------------------------------------------------------------
     def send(self,slot):
         self.data_filter()
-
+        print(self.to_send)
         buff = json.dumps(self.to_send).encode()
         # buff = self.clients['response'][slot] #content
         written = self.clients['connection'][slot].send(buff) #size
@@ -132,6 +138,7 @@ class Server:
         self.epoll.register(self.fileno, select.EPOLLIN | select.EPOLLET)
 
         try:
+            start = time.time()
 
             while True: 
                 events = self.epoll.poll(1.0) #timeout
@@ -139,7 +146,8 @@ class Server:
                 print(self.clients['fileno'])
 
                 for fileno, event in events:
-                    if fileno == self.fileno:
+                    end = time.time()
+                    if (fileno == self.fileno) and ((end - start) < 15):
                         self.connect()
                     else:
                         slot = self.find_slot(fileno)

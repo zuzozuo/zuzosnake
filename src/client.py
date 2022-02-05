@@ -17,6 +17,7 @@ player_data = {
             }
 
 all_player_data = ""
+exit_game = False
 is_connected = False
 # --- CLASSES 
 
@@ -43,7 +44,7 @@ class Game:
 
 
     def rungame(self):
-        global player_data, all_player_data
+        global player_data, all_player_data, exit_game, is_connected
 
         player_data["alive"] = True
         player_data["score"] = 0
@@ -122,26 +123,29 @@ class Game:
 
         # --- AFTER DEATH - there is no life : ( 
 
-        infobox.endwin()
+        # infobox.endwin()
         self.screen.clear()
 
         self.screen.box()
-        self.screen.addstr(0, self.width/-5, str(self.width) + "x" + str(self.height)) # prints main window size
-        self.screen.addstr(1, self.width -5, "CURSED SNAKEE")
+        self.screen.addstr(0,int(self.width/2)-5, str(self.width) + "x" + str(self.height)) # prints main window size
+        self.screen.addstr(1, int(self.width/2)-5, "CURSED SNAKEE")
+        self.screen.addstr(4, int(self.width/2)-5, "WAITING FOR OTHER PLAYERS TO FINISH THE GAME....") # TODO MAKE IT PRETTIER
         self.screen.refresh()
 
-        #  NOTE - TO CHECK AND FINISH!
-        exit_game = False
+        #  NOTE - TO FINISH!    
 
         while True:
-            to_print = json.loads(all_player_data.decode())
-
+            alive_states = [] 
+            players_num = all_player_data[0]["players_num"]
+            to_print = all_player_data
+            posy = 0
             for line in to_print:
                 info_text = "nick: " + line["nick"] + " score: " + str(line["score"]) + " alive: " + str(line["alive"])
-                self.screen.addstr(6 + posy ,6 ,info_text)
+                self.screen.addstr(6 + posy , int(self.width/2)- 20 , info_text)
                 posy +=1
+                alive_states.append(line["alive"])
 
-                exit_game &= not line["alive"]
+            exit_game = True if(players_num == alive_states.count(False)) else False
             
             if (exit_game):
                 break
@@ -152,8 +156,7 @@ class Game:
 
         curses.endwin()
 
-        return
-
+        return 0 
 
 
 class Client:
@@ -165,7 +168,7 @@ class Client:
         self.received = None
 
     def conn(self):
-        global player_data, all_player_data, is_connected
+        global player_data, all_player_data, is_connected, exit_game
 
         self.socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -192,10 +195,12 @@ class Client:
                 
                 all_player_data = json.loads(buff.decode())
 
+                if(exit_game):
+                    break
+
                 #print(buff)
 
         except socket.error as e:
-
             is_connected = False
 
             if(e[0] == errno.EPIPE):
@@ -203,8 +208,8 @@ class Client:
             elif (e[0] == errno.EINPROGRESS):
                 logging.error("Cannot connect!")
 
-        
         finally:
+            is_connected = False
             self.socket.close()
 
 
@@ -223,14 +228,25 @@ def main(screen):
         screen_x = int(curses.COLS) # main screen width
         screen_y = int(curses.LINES) # main screen height
 
-        print(screen_x, screen_y)
-
-
         client = Client(server_ip, nick)
         game = Game(screen, screen_x, screen_y)
         t =  threading.Thread(target=client.conn, args=())
         t.start()
-        game.rungame()
+
+        start = time.time()
+
+        while True:
+            if is_connected:
+                game.rungame()
+                break
+            elif (time.time() - start) > 3 and not is_connected:
+                screen.addstr(10, int(screen_x/2)-10, "Could not connect to the server...")
+                screen.refresh()
+                time.sleep(1.5)
+
+                #TODO IF COULD NOT CONNECT WE CAN ASK PLAYER IF HE WANTS TO PLAY SINGLE MODE
+                break
+
 
     except IndexError:
         print("No ip addr or nick  given!")
@@ -250,3 +266,13 @@ def main(screen):
 #------------------------------------------------------------------
 if __name__ == '__main__':
     curses.wrapper(main)
+
+#TODO AFTER MULTI SHOW SCORES AND WAIT FOR EXIT KEY
+    if(len(all_player_data) > 0):
+        sorted_data = sorted(all_player_data, key=lambda d: d['score']) 
+
+        print("HIGH SCORES TIME: ")
+        print("THE WINNER IS...." + str(sorted_data[0]['nick'])) # TODO SOME FANCY LETTERS!
+        
+        for line in sorted_data:
+            print(str(line))
