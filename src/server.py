@@ -17,10 +17,9 @@ class Server:
         self.epoll = None 
         self.fileno = None
         self.clients = {
-            'fileno': [None] * PLAYER_COUNT,
+            'fileno': [None] * PLAYER_COUNT, 
             'connection': [None] * PLAYER_COUNT,
             'address': [None] * PLAYER_COUNT,
-            'snapshot': [None] * PLAYER_COUNT,
             'request': [None] * PLAYER_COUNT,
             'response': [None] * PLAYER_COUNT
         }
@@ -31,7 +30,7 @@ class Server:
         conn, addr = self.socket.accept()
         conn.setblocking(False)
 
-        slot = self.find_slot(None)
+        slot = self.find_slot(None) 
 
         if not slot in range(PLAYER_COUNT):
             logging.warning("NO EMPTY SLOT LEFT")
@@ -50,7 +49,6 @@ class Server:
         self.clients['fileno'][slot] = clientno
         self.clients['connection'][slot] = conn
         self.clients['address'][slot] = addr
-        self.clients['snapshot'][slot] = []
         self.clients['request'][slot] = b''
         self.clients['response'][slot] = b''
 
@@ -145,9 +143,9 @@ class Server:
                 #print(int(time.time()), events, self.clients['fileno'])
                 print(self.clients['fileno'])
 
-                for fileno, event in events:
+                for fileno, event in events: 
                     end = time.time()
-                    if (fileno == self.fileno) and ((end - start) < 15):
+                    if (fileno == self.fileno):
                         self.connect()
                     else:
                         slot = self.find_slot(fileno)

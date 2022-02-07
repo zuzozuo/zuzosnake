@@ -2,7 +2,7 @@ import curses
 import logging
 import time
 from snake import Snake
-from consts import W_WIDTH, W_HEIGHT, PORT, BUFF_SIZE , REQ_EOL
+from consts import PORT, BUFF_SIZE , REQ_EOL
 import socket
 import json
 import threading
@@ -42,8 +42,66 @@ class Game:
     def print_screen(self):
         print(self.screen)
 
+    def run_single(self):
 
-    def rungame(self):
+        self.print_screen()
+
+        directions = {
+            "LEFT": [-1, 0],  # x y 
+            "RIGHT": [1, 0],
+            "UP" : [0, -1],
+            "DOWN" : [0, 1]
+        }
+
+        curses.curs_set(0)
+
+        self.screen.box()
+        self.screen.addstr(0, self.width - 5, str(self.width) + "x" + str(self.height)) # prints main window size
+        self.screen.addstr(1, self.width - 5, "CURSED SNAKEE")
+        self.screen.refresh()
+
+        snake = Snake(self.snake_w * 2, self.snake_h, self.snake_x, self.snake_y)
+
+        self.screen.nodelay(True)
+
+        is_collision = False
+        key = 0 
+        event = 0
+
+        snake.spawn_food()
+
+        while key != 27 and not is_collision:
+            key = self.screen.getch()
+
+            if (key != -1):
+                event = key
+
+            if (event == curses.KEY_LEFT):
+                snake.move(directions["LEFT"])
+            
+            if (event == curses.KEY_RIGHT):
+                snake.move(directions["RIGHT"])
+            
+            if (event == curses.KEY_DOWN):
+                snake.move(directions["DOWN"])
+            
+            if (event == curses.KEY_UP):
+                snake.move(directions["UP"])
+            
+            is_collision = snake.border_collision() or snake.tail_collision()
+
+            snake.update()  
+
+            self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
+            self.screen.refresh()
+            time.sleep(0.1)
+
+        curses.endwin()
+
+        return 0 
+
+
+    def run_multi(self):
         global player_data, all_player_data, exit_game, is_connected
 
         player_data["alive"] = True
@@ -66,6 +124,7 @@ class Game:
         self.screen.refresh()
 
         snake = Snake(self.snake_w, self.snake_h, self.snake_x, self.snake_y)
+
         infobox = curses.newwin(self.info_h, self.info_w, self.info_y, self.info_x)
         infobox.clear()
         infobox.box()
@@ -113,7 +172,6 @@ class Game:
                 posy +=1
 
             infobox.refresh()          
-            #self.screen.addstr(10, 10, to_print)
             self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
@@ -198,8 +256,6 @@ class Client:
                 if(exit_game):
                     break
 
-                #print(buff)
-
         except socket.error as e:
             is_connected = False
 
@@ -237,16 +293,23 @@ def main(screen):
 
         while True:
             if is_connected:
-                game.rungame()
+                game.run_multi()
                 break
             elif (time.time() - start) > 3 and not is_connected:
-                screen.addstr(10, int(screen_x/2)-10, "Could not connect to the server...")
+                screen.addstr(10, int(screen_x/2)-20, "Could not connect to the server...")
                 screen.refresh()
-                time.sleep(1.5)
-
                 #TODO IF COULD NOT CONNECT WE CAN ASK PLAYER IF HE WANTS TO PLAY SINGLE MODE
-                break
+                screen.addstr(15, int(screen_x/2)-20, "Do you wish to play single-mode version?  (y/n")
+                screen.refresh()
+                key = screen.getch()
 
+                if(key == ord('n')):
+                    break
+                
+                if(key == ord('y')):
+                    game.run_single()
+                    break
+                time.sleep(0.1)
 
     except IndexError:
         print("No ip addr or nick  given!")
