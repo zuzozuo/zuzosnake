@@ -1,14 +1,12 @@
+#!/usr/bin/python3 -B
+# -*- coding: utf-8 -*-
 import logging
-from consts import W_WIDTH, W_HEIGHT, PORT, BUFF_SIZE , PLAYER_COUNT, TIME , REQ_EOL
+from consts import PORT, BUFF_SIZE , PLAYER_COUNT, REQ_EOL, M_OK
 import socket
 import json
-import os
-import sys
 import select
 import json
-import threading
 import time
-import errno
 
 class Server:
 
@@ -26,7 +24,7 @@ class Server:
         self.to_send = []
         self.active = 0
 # -----------------------------------------------------
-    def connect(self):
+    def connect(self):        
         conn, addr = self.socket.accept()
         conn.setblocking(False)
 
@@ -35,7 +33,7 @@ class Server:
         if not slot in range(PLAYER_COUNT):
             logging.warning("NO EMPTY SLOT LEFT")
             conn.close()
-            return False
+            return False       
         
         clientno = conn.fileno()
 
@@ -76,17 +74,18 @@ class Server:
                 else:
                     for k in range(0, len(self.to_send)):
                         self.to_send[k]["players_num"] =  self.active
+                        self.to_send[k]["message"] = M_OK
+
                         if self.to_send[k]["nick"] == tmp["nick"]:
                             self.to_send[k]["score"] = tmp["score"]
-                            self.to_send[k]["alive"] = tmp["alive"]
+                            self.to_send[k]["alive"] = tmp["alive"]                           
                             
-
 # ---------------------------------------------------------------------
     def send(self,slot):
         self.data_filter()
-        print(self.to_send)
+        #print(self.to_send)
         buff = json.dumps(self.to_send).encode()
-        # buff = self.clients['response'][slot] #content
+
         written = self.clients['connection'][slot].send(buff) #size
         # print(buff, written)  # FIXME 
         self.clients['response'][slot] = buff[written:]
@@ -105,7 +104,6 @@ class Server:
 
         if REQ_EOL in self.clients['request'][slot]:
             #print("Response from all clients: ")
-            #print(self.clients['request'])  # FIXME
             self.epoll.modify(self.clients['fileno'][slot], select.EPOLLOUT)
 
             self.clients['response'][slot] = self.clients['request'][slot]
@@ -136,15 +134,13 @@ class Server:
         self.epoll.register(self.fileno, select.EPOLLIN | select.EPOLLET)
 
         try:
-            start = time.time()
 
             while True: 
                 events = self.epoll.poll(1.0) #timeout
-                #print(int(time.time()), events, self.clients['fileno'])
-                print(self.clients['fileno'])
+
+                #print(self.clients['fileno'])
 
                 for fileno, event in events: 
-                    end = time.time()
                     if (fileno == self.fileno):
                         self.connect()
                     else:

@@ -1,3 +1,5 @@
+#!/usr/bin/python3 -B
+# -*- coding: utf-8 -*-
 import curses
 import logging
 import time
@@ -19,6 +21,8 @@ player_data = {
 all_player_data = ""
 exit_game = False
 is_connected = False
+txt = ''
+
 # --- CLASSES 
 
 class Game:
@@ -34,9 +38,9 @@ class Game:
         self.snake_y = 2
 
         # VALUES FOR INFOBOX WINDOW
-        self.info_w = int((width/2) - 7) 
+        self.info_w = int((width/2) - 10) 
         self.info_h = self.snake_h
-        self.info_x = self.snake_w + 1
+        self.info_x = self.snake_w + 3
         self.info_y = self.snake_y
 
     def print_screen(self):
@@ -56,8 +60,8 @@ class Game:
         curses.curs_set(0)
 
         self.screen.box()
-        self.screen.addstr(0, self.width - 5, str(self.width) + "x" + str(self.height)) # prints main window size
-        self.screen.addstr(1, self.width - 5, "CURSED SNAKEE")
+        self.screen.addstr(0, int(self.width/2) - 5, str(self.width) + "x" + str(self.height)) # prints main window size
+        self.screen.addstr(1, int(self.width/2) - 5, "CURSED SNAKEE")
         self.screen.refresh()
 
         snake = Snake(self.snake_w * 2, self.snake_h, self.snake_x, self.snake_y)
@@ -92,7 +96,7 @@ class Game:
 
             snake.update()  
 
-            self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
+            self.screen.addstr(1, self.width - 20, "Your score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
 
@@ -100,7 +104,7 @@ class Game:
 
         return 0 
 
-
+# --------------------------------------------
     def run_multi(self):
         global player_data, all_player_data, exit_game, is_connected
 
@@ -172,16 +176,14 @@ class Game:
                 posy +=1
 
             infobox.refresh()          
-            self.screen.addstr(1, self.width - 20, "Score: " + str(snake.get_score()))
+            self.screen.addstr(1, self.width - 20, "Your score: " + str(snake.get_score()))
             self.screen.refresh()
             time.sleep(0.1)
-
         
-        player_data["alive"] = False
+        player_data["alive"] = False        
 
         # --- AFTER DEATH - there is no life : ( 
 
-        # infobox.endwin()
         self.screen.clear()
 
         self.screen.box()
@@ -203,14 +205,13 @@ class Game:
                 posy +=1
                 alive_states.append(line["alive"])
 
-            exit_game = True if(players_num == alive_states.count(False)) else False
-            
+            exit_game = True if((players_num == alive_states.count(False)) or (len(all_player_data) <= 1)) else False
+
             if (exit_game):
                 break
 
             self.screen.refresh()
             time.sleep(0.1)
-        
 
         curses.endwin()
 
@@ -226,7 +227,7 @@ class Client:
         self.received = None
 
     def conn(self):
-        global player_data, all_player_data, is_connected, exit_game
+        global player_data, all_player_data, is_connected, exit_game, txt
 
         self.socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) 
         self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -246,7 +247,7 @@ class Client:
                 self.socket.send(json.dumps(player_data)+ REQ_EOL)
 
                 buff = self.socket.recv(BUFF_SIZE)
-
+                txt = buff
                 if len(buff) <= 0:
                     logging.warning("Empty buff")
                     return
@@ -296,10 +297,8 @@ def main(screen):
                 game.run_multi()
                 break
             elif (time.time() - start) > 3 and not is_connected:
-                screen.addstr(10, int(screen_x/2)-20, "Could not connect to the server...")
-                screen.refresh()
-                #TODO IF COULD NOT CONNECT WE CAN ASK PLAYER IF HE WANTS TO PLAY SINGLE MODE
-                screen.addstr(15, int(screen_x/2)-20, "Do you wish to play single-mode version?  (y/n")
+                screen.addstr(10, int(screen_x/2)-10, "Could not connect to the server...")
+                screen.addstr(15, int(screen_x/2)-5, "Do you wish to play single-mode version?  ( y / n ) " )
                 screen.refresh()
                 key = screen.getch()
 
@@ -322,20 +321,16 @@ def main(screen):
     except KeyboardInterrupt:
         print("RIP\n")
     
-    #finally:
-        #t.join()
-        #client.socket.close()
-
 #------------------------------------------------------------------
 if __name__ == '__main__':
     curses.wrapper(main)
 
 #TODO AFTER MULTI SHOW SCORES AND WAIT FOR EXIT KEY
     if(len(all_player_data) > 0):
-        sorted_data = sorted(all_player_data, key=lambda d: d['score']) 
+        sorted_data = sorted(all_player_data, key=lambda d: d['score'])[::-1] 
 
         print("HIGH SCORES TIME: ")
         print("THE WINNER IS...." + str(sorted_data[0]['nick'])) # TODO SOME FANCY LETTERS!
         
         for line in sorted_data:
-            print(str(line))
+            print("nick: " + line["nick"] + " score: " + str(line["score"]))

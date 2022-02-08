@@ -1,21 +1,23 @@
+#!/usr/bin/python3 -B
+# -*- coding: utf-8 -*-
+
 import curses
 import random
-import time
+from consts import FOOD_S, HEAD_S, TAIL_S, MAX_FOOD_NUMBER
 
 # ---- CLASSES 
 
 class Snake:
-    def __init__(self, w, h, win_x, win_y):
+    def __init__(self, w, h, win_x, win_y): 
         self.width = w
         self.height = h
-        self.win_x = win_x
-        self.win_y = win_y
+        self.win_x = win_x 
+        self.win_y = win_y 
         self.current_dir = [0, random.choice([-1,1])]
         self.score = 0
 
-
         # SNAKE WINDOW INIT
-        self.window = curses.newwin(h, w, win_y, win_x)
+        self.window = curses.newwin(h, w, win_y, win_x) 
         self.window.clear()
         self.window.box()
         self.window.border(1)
@@ -40,14 +42,21 @@ class Snake:
     
     def spawn_food(self):
 
+        if len(self.food) > MAX_FOOD_NUMBER:
+            return
+
         x = random.randint(self.win_x + 2, self.width - 2)
         y = random.randint(self.win_y, self.height - 2)
-        
-        while (([x, y] in self.tail) or ([x, y] in self.food)): 
-            x = random.randint(self.win_x + 2, self.width - 2)
-            y = random.randint(self.win_y, self.height - 2)
 
-        self.food.append([x, y])
+        for _ in range(0, random.randint(1, 3)):
+            while (([x, y] in self.tail) or ([x, y] in self.food)): 
+                x = random.randint(self.win_x + 2, self.width - 2)
+                y = random.randint(self.win_y, self.height - 2)
+
+            self.food.append([x, y])
+
+        for food in self.food:
+            self.window.addstr(food[1], food[0], FOOD_S) 
 
     # ---- COLLISIONS
     def border_collision(self):
@@ -60,7 +69,7 @@ class Snake:
         return False
 
     def tail_collision(self):
-        if ([self.x, self.y] in self.tail[2:]):
+        if ([self.x, self.y] in self.tail[2:]):  
             return True
 
         return False
@@ -83,10 +92,8 @@ class Snake:
             self.tail.insert(0, [self.x, self.y]) #insert new block at food position
             self.food.remove([self.x, self.y])     
             self.add_score()
+            self.spawn_food()
 
-            if(len(self.food) < 1):
-                for i in range (0, random.randint(1,4)):
-                    self.spawn_food()
             self.window.refresh()
 
 
@@ -95,16 +102,13 @@ class Snake:
         if(len(self.tail) > 1):
             to_del = self.tail.pop()
 
-        for food in self.food:
-            self.window.addstr(food[1], food[0], "x")
-
         self.window.addstr(to_del[1], to_del[0], " ")        
         
         # drawing head
-        self.window.addstr(self.tail[0][1], self.tail[0][0], "#") 
+        self.window.addstr(self.tail[0][1], self.tail[0][0], HEAD_S) 
 
         # drawing the rest of the body
         for i in range(1, len(self.tail)):
-            self.window.addstr(self.tail[i][1], self.tail[i][0], "o")
+            self.window.addstr(self.tail[i][1], self.tail[i][0], TAIL_S)
         
         self.window.refresh()
