@@ -61,7 +61,7 @@ class Game:
 
         self.screen.box()
         self.screen.addstr(0, int(self.width/2) - 5, str(self.width) + "x" + str(self.height)) # prints main window size
-        self.screen.addstr(1, int(self.width/2) - 5, "CURSED SNAKEE")
+        self.screen.addstr(1, int(self.width/2) - 5, "SUPER SNAKE GAME")
         self.screen.refresh()
 
         snake = Snake(self.snake_w * 2, self.snake_h, self.snake_x, self.snake_y)
@@ -124,7 +124,7 @@ class Game:
 
         self.screen.box()
         self.screen.addstr(0,int(self.width/2)-5, str(self.width) + "x" + str(self.height)) # prints main window size
-        self.screen.addstr(1, int(self.width/2)-5, "CURSED SNAKEE")
+        self.screen.addstr(1, int(self.width/2)-5, "SUPER SNAKE GAME")
         self.screen.refresh()
 
         snake = Snake(self.snake_w, self.snake_h, self.snake_x, self.snake_y)
@@ -188,7 +188,7 @@ class Game:
 
         self.screen.box()
         self.screen.addstr(0,int(self.width/2)-5, str(self.width) + "x" + str(self.height)) # prints main window size
-        self.screen.addstr(1, int(self.width/2)-5, "CURSED SNAKEE")
+        self.screen.addstr(1, int(self.width/2)-5, "SUPER SNAKE GAME")
         self.screen.addstr(4, int(self.width/2)-5, "WAITING FOR OTHER PLAYERS TO FINISH THE GAME....") # TODO MAKE IT PRETTIER
         self.screen.refresh()
 

@@ -13,7 +13,6 @@ class Snake:
         self.height = h
         self.win_x = win_x 
         self.win_y = win_y 
-        self.current_dir = [0, random.choice([-1,1])]
         self.score = 0
 
         # SNAKE WINDOW INIT
@@ -38,7 +37,6 @@ class Snake:
         self.x += direction[0] 
         self.y += direction[1]
 
-        self.current_dir = direction
     
     def spawn_food(self):
 
@@ -74,9 +72,6 @@ class Snake:
 
         return False
     
-    def snake_tail(self):
-        return self.tail
-
     # ----- 
     def add_score(self):
         self.score +=1

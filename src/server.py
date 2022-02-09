@@ -1,12 +1,11 @@
 #!/usr/bin/python3 -B
 # -*- coding: utf-8 -*-
 import logging
-from consts import PORT, BUFF_SIZE , PLAYER_COUNT, REQ_EOL, M_OK
+from consts import PORT, BUFF_SIZE , PLAYER_COUNT, REQ_EOL
 import socket
 import json
 import select
 import json
-import time
 
 class Server:
 
@@ -74,7 +73,6 @@ class Server:
                 else:
                     for k in range(0, len(self.to_send)):
                         self.to_send[k]["players_num"] =  self.active
-                        self.to_send[k]["message"] = M_OK
 
                         if self.to_send[k]["nick"] == tmp["nick"]:
                             self.to_send[k]["score"] = tmp["score"]
@@ -137,8 +135,6 @@ class Server:
 
             while True: 
                 events = self.epoll.poll(1.0) #timeout
-
-                #print(self.clients['fileno'])
 
                 for fileno, event in events: 
                     if (fileno == self.fileno):
