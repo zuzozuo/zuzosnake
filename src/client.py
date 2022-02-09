@@ -189,7 +189,7 @@ class Game:
         self.screen.box()
         self.screen.addstr(0,int(self.width/2)-5, str(self.width) + "x" + str(self.height)) # prints main window size
         self.screen.addstr(1, int(self.width/2)-5, "SUPER SNAKE GAME")
-        self.screen.addstr(4, int(self.width/2)-5, "WAITING FOR OTHER PLAYERS TO FINISH THE GAME....") # TODO MAKE IT PRETTIER
+        self.screen.addstr(4, int(self.width/3), "WAITING FOR OTHER PLAYERS TO FINISH THE GAME....") # TODO MAKE IT PRETTIER
         self.screen.refresh()
 
         #  NOTE - TO FINISH!    
@@ -201,7 +201,7 @@ class Game:
             posy = 0
             for line in to_print:
                 info_text = "nick: " + line["nick"] + " score: " + str(line["score"]) + " alive: " + str(line["alive"])
-                self.screen.addstr(6 + posy , int(self.width/2)- 20 , info_text)
+                self.screen.addstr(6 + posy , int(self.width/3)- 10 , info_text)
                 posy +=1
                 alive_states.append(line["alive"])
 

@@ -25,6 +25,7 @@ class Server:
 # -----------------------------------------------------
     def connect(self):        
         conn, addr = self.socket.accept()
+        logging.warning("Incoming connection from ip: {} on port: {}".format(addr[0], addr[1]))
         conn.setblocking(False)
 
         slot = self.find_slot(None) 
@@ -50,7 +51,7 @@ class Server:
         self.clients['response'][slot] = b''
 
         self.active = sum((x is not None for x in self.clients['fileno']))
-
+        logging.warning("Client {} connected with fileno: {} slot num: {}".format(addr[1], clientno, slot))
         return True
 
 # --------------------------------------------------------------------
@@ -76,7 +77,22 @@ class Server:
 
                         if self.to_send[k]["nick"] == tmp["nick"]:
                             self.to_send[k]["score"] = tmp["score"]
-                            self.to_send[k]["alive"] = tmp["alive"]                           
+                            self.to_send[k]["alive"] = tmp["alive"]     
+
+# -----------------------------------------------------------------------
+    def is_everyone_dead(self):
+        if self.active > 0:
+            death_counter = 0
+
+            for k in self.to_send:
+                if k["alive"] == False:
+                    death_counter += 1
+            
+            if death_counter == self.active:
+                logging.warning("Everyone is dead!, Server is going to shut down")
+                return True
+
+        return False
                             
 # ---------------------------------------------------------------------
     def send(self,slot):
@@ -85,7 +101,6 @@ class Server:
         buff = json.dumps(self.to_send).encode()
 
         written = self.clients['connection'][slot].send(buff) #size
-        # print(buff, written)  # FIXME 
         self.clients['response'][slot] = buff[written:]
         self.epoll.modify(self.clients['fileno'][slot], select.EPOLLIN)
 
@@ -151,6 +166,9 @@ class Server:
                             self.conn_close(slot)
                         else:
                             logging.warning("Unknown error")
+
+                if self.is_everyone_dead():
+                    break
         
         finally:
             self.epoll.unregister(self.fileno)
